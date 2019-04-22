@@ -112,7 +112,7 @@ for trials in range(1, 2):
     #rho = 7850                                     # density                        (kg/m³)
     #g = 9.81                                       # gravitational acceleration     (m/s²)
     timesteps = 3                                  # timesteps
-    modes = 1                                       # number of modes used
+    modes = 3                                       # number of modes used
     tol = 1E-14                                     # tolerance
 
     # Create mesh and define function space
@@ -311,51 +311,54 @@ for trials in range(1, 2):
             f = Constant((0, 0, force))                     # defining force
             d = u.geometric_dimension()                     # space dimension
             I = Identity(d)
-            F = I + grad(u)
-            C = F.T*F
-            Ic = tr(C)
-            J = det(F)
-            psi = (mu/2)*(Ic -3) - mu*ln(J) + (lmbda/2)*ln(J)**2
-            Pi = psi*dx - dot(f*i, u)*ds(1)
-            F = derivative(Pi, u, v)
-            J = derivative(F, u, du)
+            
             a = inner(sigma(du), epsilon(v)) * dx
             L = dot(f*i, v)*ds(1)
             K, f_vec = assemble_system(a, L, bcs)
             #K = np.array(K.array())                                                 # stiffness matrix
+            K_red = np.matmul(np.matmul(phi.T, K), phi)                             # reduced stiffness matrix
             #f_vec = np.array(f_vec)  
             solve(a == L, u, bcs)
             ep = np.array([1])
             j = 1
-            # K_red = np.matmul(np.matmul(phi.T, K), phi)                             # reduced stiffness matrix
             # f_red = np.matmul(phi.T, f_vec)                                             # reduced force vector
             # u_red = np.matmul(f_red, np.linalg.inv(K_red))                          # reduced displacement
             # u_POD = np.matmul(phi, u_red)                                           # projected displacement
             # G_red = np.matmul(phi.T, np.array(ep))
-            while ep.any() > 1e-10:
+            while np.amax(ep) > 10e-7:
                 print("Newton iteration:", j)
-                j += 1
+                F = I + grad(u)
+                C = F.T*F
+                Ic = tr(C)
+                J = det(F)
+                psi = (mu/2)*(Ic -3) - mu*ln(J) + (lmbda/2)*ln(J)**2
+                Pi = psi*dx - dot(f*i, u)*ds(1)
+                F = derivative(Pi, u, v)
+                J = derivative(F, u, du)
                 A, ep = assemble_system(J, F, bcs=bcs)
                 delta_u = np.matmul(-np.array(ep), np.linalg.inv(K.array()))
-                print(np.array(u.vector()).shape, delta_u.shape)
-                u = u + delta_u
-                # K_red = np.matmul(np.matmul(phi.T, K), phi)                             # reduced stiffness matrix
+                u = np.array(u.vector()) + delta_u
+                u_ph = Function(V)
+                u_ph.vector().set_local(u)
+                u = u_ph
+
                 # f_red = np.matmul(phi.T, f_vec)                                             # reduced force vector
                 # u_red = np.matmul(f_red, np.linalg.inv(K_red))                          # reduced displacement
                 # u_POD = np.matmul(phi, u_red)                                           # projected displacement
                 ep = np.array(ep)
-                print(np.array(ep))
-                if j == 10:
+                print(np.mean(ep))
+                if j == 40:
                     break
-
-
+                j += 1
+            u_POD = np.array(u.vector())
+            np.savetxt("ep", ep)
             endtime = time.time()
             print("POD step %s:" % i)
             u_max_unr = np.amax(u_array_dof[:][i-1])
             u_max_red = np.amax(u_POD)
             error = abs((u_max_unr-u_max_red)/u_max_unr)
             print("Lenght:", Len, " ; u_max_unr:", u_max_unr, " ; u_max_red:", u_max_red, " ; Difference in Deformation:", error)
-        error_matrix.append((Len, error))
+        # error_matrix.append((Len, error))
         return u_POD
 
     u_array_dof = compute_unreduced()
@@ -369,4 +372,4 @@ for trials in range(1, 2):
 #np.savetxt("error_matrix.txt", error_matrix)
 #snaptxt("snapshots", u_array_dof, conv=True)
 #snaptxt("phi_loaded_unsorted", phi_loaded)
-#docit(u_POD=conversion(u_POD))
+docit(u_POD=conversion(u_POD))
