@@ -366,12 +366,7 @@ for trials in range(1, 2):
 
     u_POD = POD(phi_loaded)
 
-np.savetxt("error_matrix.txt", error_matrix)
-snaptxt("snapshots", u_array_dof, conv=True)
-snaptxt("phi_loaded_unsorted", phi_loaded)
-docit(u_POD=conversion(u_POD))
-#Penes
-#so this is a test
-# i hope it works
-#maybe this is better
-# and will work
+#np.savetxt("error_matrix.txt", error_matrix)
+#snaptxt("snapshots", u_array_dof, conv=True)
+#snaptxt("phi_loaded_unsorted", phi_loaded)
+#docit(u_POD=conversion(u_POD))
