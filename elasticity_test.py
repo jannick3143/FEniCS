@@ -371,3 +371,5 @@ snaptxt("snapshots", u_array_dof, conv=True)
 snaptxt("phi_loaded_unsorted", phi_loaded)
 docit(u_POD=conversion(u_POD))
 #Penes
+#so this is a test
+# i hope it works
