@@ -274,6 +274,6 @@ u_red = np.matmul(f_red, np.linalg.inv(K_red))          # reduced displacement
 final = np.matmul(phi, u_red)                           # projected displacement
 endtime = time.time()
 
-snaptxt("phi", phi)
-snaptxt("snapshots", u_array_dof)
-docit(final=conversion(final))
+#snaptxt("phi", phi)
+#snaptxt("snapshots", u_array_dof)
+#docit(final=conversion(final))
