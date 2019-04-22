@@ -370,3 +370,4 @@ np.savetxt("error_matrix.txt", error_matrix)
 snaptxt("snapshots", u_array_dof, conv=True)
 snaptxt("phi_loaded_unsorted", phi_loaded)
 docit(u_POD=conversion(u_POD))
+#Penes
