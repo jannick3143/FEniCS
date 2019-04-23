@@ -94,12 +94,12 @@ def snaptxt(name, matrix_u, conv = False, steps = (0, 0)):
 
 error_matrix = []
 for trials in range(1, 2):
-    print(trials, " ______________________________________________________________________________________________________________")
+    print("Trial:", trials, " ______________________________________________________________________________________________________________")
 #    Len = 0.90+np.random.random()*0.2                                        # length of object (x=x[0])      (mm)
     Len = 1
     W = 1                                           # width of object (y=x[1])       (mm)
     H = 1                                           # height of object (z=x[2])      (mm)
-    num = 6
+    num = 8
 #    num = trials*2                                        # number of elements in each direction
     num_nodes = (num+1)**3                          # number of nodes in the whole system
     E = 210000                                          # Young's Modulus                (N/mm²)
@@ -111,8 +111,8 @@ for trials in range(1, 2):
     #mu = 80
     #rho = 7850                                     # density                        (kg/m³)
     #g = 9.81                                       # gravitational acceleration     (m/s²)
-    timesteps = 3                                  # timesteps
-    modes = 3                                       # number of modes used
+    timesteps = 10                                  # timesteps
+    modes = 10                                       # number of modes used
     tol = 1E-14                                     # tolerance
 
     # Create mesh and define function space
@@ -235,7 +235,7 @@ for trials in range(1, 2):
         #            u_displacement_ro.append(u_displacement[j][k])
         #    u_array.append(u_displacement_ro)
             solve(F == 0, u, bcs, J=J, form_compiler_parameters=ffc_options)
-            print("step %s:" % i, time.time()-starttime)
+            print("full system step %s:" % i, time.time()-starttime)
             File('elasticity/displacement' + str(i) + '.pvd') << u
             File('elasticity/displacementmodesstandard.pvd') << u
             File('elasticity/displacementmodes.pvd') << u
@@ -304,29 +304,35 @@ for trials in range(1, 2):
 # Proper Orthogonal Decomposition
 
     def POD(phi):
-        for i in range(1, timesteps+1):
+        for i in range(5, timesteps+1):
             du = TrialFunction(V)
             u = Function(V)
             v = TestFunction(V)
             f = Constant((0, 0, force))                     # defining force
-            d = u.geometric_dimension()                     # space dimension
-            I = Identity(d)
-            
             a = inner(sigma(du), epsilon(v)) * dx
             L = dot(f*i, v)*ds(1)
             K, f_vec = assemble_system(a, L, bcs)
-            #K = np.array(K.array())                                                 # stiffness matrix
+            K = np.array(K.array())                                                # stiffness matrix
+            f_vec = np.array(f_vec)
+            d = u.geometric_dimension()                     # space dimension
+            I = Identity(d)
+
             K_red = np.matmul(np.matmul(phi.T, K), phi)                             # reduced stiffness matrix
-            #f_vec = np.array(f_vec)  
-            solve(a == L, u, bcs)
-            ep = np.array([1])
+            f_red = np.matmul(phi.T, f_vec)                                             # reduced force vector
+            u_red = np.matmul(f_red, np.linalg.inv(K_red))                          # reduced displacement
+            u_proj = np.matmul(phi, u_red)                                           # projected displacement
+            u.vector().set_local(u_proj)
+
+            u_max_unr = np.amax(u_array_dof[:][i-1])
+            u_max_red = np.amax(np.array(u.vector()))
+            error = abs((u_max_unr-u_max_red)/u_max_unr)
+            print(error)
+
+            G = np.array([1])
             j = 1
-            # f_red = np.matmul(phi.T, f_vec)                                             # reduced force vector
-            # u_red = np.matmul(f_red, np.linalg.inv(K_red))                          # reduced displacement
-            # u_POD = np.matmul(phi, u_red)                                           # projected displacement
-            # G_red = np.matmul(phi.T, np.array(ep))
-            while np.amax(ep) > 10e-7:
-                print("Newton iteration:", j)
+            starttime = time.time()
+            while abs(np.linalg.norm(G)) > 1e-10:
+                print("Newton iteration:", j, " ; norm of residual:", abs(np.linalg.norm(G)))
                 F = I + grad(u)
                 C = F.T*F
                 Ic = tr(C)
@@ -335,31 +341,35 @@ for trials in range(1, 2):
                 Pi = psi*dx - dot(f*i, u)*ds(1)
                 F = derivative(Pi, u, v)
                 J = derivative(F, u, du)
-                A, ep = assemble_system(J, F, bcs=bcs)
-                delta_u = np.matmul(-np.array(ep), np.linalg.inv(K.array()))
-                u = np.array(u.vector()) + delta_u
-                u_ph = Function(V)
-                u_ph.vector().set_local(u)
-                u = u_ph
-
-                # f_red = np.matmul(phi.T, f_vec)                                             # reduced force vector
-                # u_red = np.matmul(f_red, np.linalg.inv(K_red))                          # reduced displacement
-                # u_POD = np.matmul(phi, u_red)                                           # projected displacement
-                ep = np.array(ep)
-                print(np.mean(ep))
-                if j == 40:
+                A, G = assemble_system(J, F, bcs=bcs)
+                G = np.array(G)
+                G_red = np.matmul(phi.T, np.array(G))
+                # delta_u_red = np.matmul(-np.array(G_red), np.linalg.inv(K_red))
+                # u_red = u_red + delta_u_red
+                delta_u = np.matmul(np.linalg.inv(K), -np.array(G))
+                u_test = np.array(u.vector()) + delta_u
+                u_ph_test = Function(V)
+                u_ph_test.vector().set_local(u_test)
+                # u_proj = np.matmul(phi, u_red)
+                # u_ph = Function(V)
+                # u_ph.vector().set_local(u_proj)
+                u = u_ph_test
+                if j == 20:
                     break
                 j += 1
+           # docit(u_POD=conversion(u_POD))
             u_POD = np.array(u.vector())
-            np.savetxt("ep", ep)
             endtime = time.time()
-            print("POD step %s:" % i)
+            print("POD step %s:" % i, endtime-starttime," ; POD same as unreduced:", np.allclose(u_array_dof[:][i-1], u_POD))
             u_max_unr = np.amax(u_array_dof[:][i-1])
             u_max_red = np.amax(u_POD)
             error = abs((u_max_unr-u_max_red)/u_max_unr)
             print("Lenght:", Len, " ; u_max_unr:", u_max_unr, " ; u_max_red:", u_max_red, " ; Difference in Deformation:", error)
-        # error_matrix.append((Len, error))
+        error_matrix.append((Len, error))
         return u_POD
+
+
+
 
     u_array_dof = compute_unreduced()
 
